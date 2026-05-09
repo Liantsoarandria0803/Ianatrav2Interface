@@ -586,9 +586,15 @@
   }
 
   async function doLogin() {
-    const email = document.getElementById('login-email').value;
+    const email = document.getElementById('login-email').value.trim().toLowerCase();
     const password = document.getElementById('login-password').value;
-    document.getElementById('login-error').textContent = '';
+    const error = document.getElementById('login-error');
+    error.textContent = '';
+
+    if (!email || !password) {
+      error.textContent = 'Email et mot de passe sont obligatoires.';
+      return;
+    }
 
     try {
       const res = await api('POST', '/auth/login', { email, password });
@@ -605,16 +611,26 @@
   }
 
   async function doRegister() {
-    const name = document.getElementById('reg-name').value;
-    const email = document.getElementById('reg-email').value;
+    const name = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim().toLowerCase();
     const password = document.getElementById('reg-password').value;
     const vertical = document.getElementById('reg-vertical').value;
     const examDate = document.getElementById('reg-exam-date').value;
-    document.getElementById('register-error').textContent = '';
+    const error = document.getElementById('register-error');
+    error.textContent = '';
+
+    if (!email || !password) {
+      error.textContent = 'Email et mot de passe sont obligatoires.';
+      return;
+    }
+    if (password.length < 8) {
+      error.textContent = 'Le mot de passe doit contenir au moins 8 caractères.';
+      return;
+    }
 
     try {
       const res = await api('POST', '/auth/register', {
-        name, email, password, vertical,
+        name: name || null, email, password, vertical,
         exam_date: examDate || null,
       });
       state.token = res.access_token;
@@ -917,9 +933,20 @@
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.detail || `Erreur ${res.status}`);
+      throw new Error(formatApiError(data, res.status));
     }
     return data;
+  }
+
+  function formatApiError(data, status) {
+    if (typeof data.detail === 'string') return data.detail;
+    if (Array.isArray(data.detail)) {
+      return data.detail.map(err => {
+        const field = Array.isArray(err.loc) ? err.loc.filter(x => x !== 'body').join('.') : '';
+        return field ? `${field}: ${err.msg}` : err.msg;
+      }).join(' | ');
+    }
+    return `Erreur ${status}`;
   }
 
   // ── Toast ─────────────────────────────────────────────────────────────────
