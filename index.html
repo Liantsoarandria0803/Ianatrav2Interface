@@ -547,7 +547,12 @@
 <script src="./config.js"></script>
 <script>
   // ── Config ────────────────────────────────────────────────────────────────
-  const API = window.MAIA_API_BASE_URL || 'http://localhost:8000/api/v1';
+  function normalizeApiBaseUrl(url) {
+    const base = (url || 'http://localhost:8000/api/v1').replace(/\/+$/, '');
+    return base.endsWith('/api/v1') ? base : `${base}/api/v1`;
+  }
+
+  const API = normalizeApiBaseUrl(window.MAIA_API_BASE_URL);
   let state = {
     token: localStorage.getItem('maia_token'),
     user: JSON.parse(localStorage.getItem('maia_user') || 'null'),
