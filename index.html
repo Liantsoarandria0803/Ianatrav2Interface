@@ -360,6 +360,26 @@
     .toast.show { transform: none; opacity: 1; }
     .toast.error { border-color: var(--danger); }
     .toast.success { border-color: var(--success); }
+
+    /* ── Responsive ───────────────────────────────── */
+    @media (max-width: 720px) {
+      header { padding: 12px 14px; flex-wrap: wrap; gap: 10px; }
+      nav { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      #user-info { width: 100%; justify-content: space-between; }
+      main { padding: 16px 12px; }
+      .auth-container { margin: 32px auto; padding: 22px; }
+      .chat-header { flex-wrap: wrap; }
+      .token-counter { margin-left: 0; }
+      .messages-container { height: clamp(280px, 55vh, 420px); }
+      .message-bubble { max-width: 100%; }
+      .toast { left: 12px; right: 12px; bottom: 12px; width: auto; }
+    }
+
+    @media (max-width: 420px) {
+      .logo { font-size: 1.2rem; }
+      .nav-btn { padding: 6px 10px; font-size: 0.8rem; }
+      .send-btn { width: 38px; height: 38px; }
+    }
   </style>
 </head>
 <body>
@@ -367,9 +387,9 @@
   <header>
     <div class="logo">MAÏ<span>A</span></div>
     <nav id="main-nav" style="display:none">
-      <button class="nav-btn active" onclick="showView('diagnostic')">Diagnostic</button>
-      <button class="nav-btn" onclick="showView('session')">Session</button>
-      <button class="nav-btn" onclick="showView('dashboard')">Progression</button>
+      <button class="nav-btn active" data-view="diagnostic" onclick="showView('diagnostic')">Diagnostic</button>
+      <button class="nav-btn" data-view="session" onclick="showView('session')">Session</button>
+      <button class="nav-btn" data-view="dashboard" onclick="showView('dashboard')">Progression</button>
     </nav>
     <div id="user-info" style="display:none">
       <span id="user-email-display"></span>
@@ -572,7 +592,7 @@
 
   function onLoggedIn() {
     document.getElementById('main-nav').style.display = 'flex';
-    document.getElementById('user-info').style.display = 'block';
+    document.getElementById('user-info').style.display = 'flex';
     document.getElementById('user-email-display').textContent = state.user?.email || '';
     showView('diagnostic');
   }
@@ -657,7 +677,8 @@
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(`view-${name}`).classList.add('active');
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    event?.target?.classList.add('active');
+    const btn = document.querySelector(`.nav-btn[data-view="${name}"]`);
+    if (btn) btn.classList.add('active');
 
     if (name === 'dashboard') loadDashboard();
   }
@@ -809,33 +830,40 @@
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let assistantText = '';
+      let buffer = '';
       typing.classList.remove('active');
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const text = decoder.decode(value);
-        const lines = text.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        buffer = buffer.replace(/\r\n/g, '\n');
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.token) {
-                assistantText += data.token;
-                assistantEl.textContent = assistantText;
-                scrollMessages();
-              }
-              if (data.done) {
-                state.sessionTokens += data.tokens || 0;
-                document.getElementById('token-count').textContent = state.sessionTokens;
-              }
-              if (data.error) {
-                assistantEl.textContent = '⚠️ ' + data.error;
-              }
-            } catch {}
-          }
+          const trimmed = (line || '').trim();
+          if (!trimmed.startsWith('data:')) continue;
+
+          const raw = trimmed.slice(5).trim();
+          if (!raw) continue;
+
+          try {
+            const data = JSON.parse(raw);
+            if (data.token) {
+              assistantText += data.token;
+              assistantEl.textContent = assistantText;
+              scrollMessages();
+            }
+            if (data.done) {
+              state.sessionTokens += data.tokens || 0;
+              document.getElementById('token-count').textContent = state.sessionTokens;
+            }
+            if (data.error) {
+              assistantEl.textContent = '⚠️ ' + data.error;
+            }
+          } catch {}
         }
       }
     } catch (e) {
